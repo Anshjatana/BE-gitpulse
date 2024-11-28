@@ -34,10 +34,8 @@ app.use('/api', analyzerRoutes);
 app.post('/api/proxy/analyze/:username', async (req, res) => {
   try {
     const { username } = req.params;
-    
-    // Prepare the request to the Gemini API
     const geminiAPIURL = `https://api.gemini.com/v1/analyze/${username}`; // Replace with actual Gemini API URL
-    
+
     // Forward the request to the Gemini API
     const response = await axios.post(geminiAPIURL, req.body, {
       headers: {
@@ -46,9 +44,14 @@ app.post('/api/proxy/analyze/:username', async (req, res) => {
       }
     });
 
+    // Set the necessary CORS headers to allow the frontend to access the response
+    res.setHeader('Access-Control-Allow-Origin', '*');  // Allows all origins
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
     // Send the Gemini API response back to the client
     res.json(response.data);
-
   } catch (error) {
     console.error('Error in proxying the request:', error);
     res.status(500).json({ error: 'An error occurred while proxying the request' });
