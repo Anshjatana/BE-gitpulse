@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import axios from 'axios';  // Add axios for HTTP requests
 import { Octokit } from 'octokit';
+import { GoogleGenerativeAI } from '@google/generative-ai'; // Import Gemini library
 import analyzerRoutes from './src/routes/analyzerRoutes.js';
 
 dotenv.config();
@@ -15,34 +15,113 @@ const allowedOrigins = ['http://localhost:3000', 'https://gitpulse.anshjatana.on
 // CORS options
 const corsOptions = {
   origin: (origin, callback) => {
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    // Allow specific origins or none (i.e., * for all origins)
+    const allowedOrigins = ['http://localhost:3000', 'https://gitpulse.anshjatana.online'];
+    if (allowedOrigins.includes(origin) || !origin) {
       callback(null, true); // Allow the request
     } else {
       callback(new Error('Not allowed by CORS'), false); // Reject the request
     }
   },
-  methods: 'GET, POST, PUT, DELETE, OPTIONS', // Allow these methods
-  allowedHeaders: 'Content-Type, Authorization', // Allow these headers
-  credentials: true, // Allow cookies or credentials to be sent
+  methods: 'GET, POST, PUT, DELETE, OPTIONS',
+  allowedHeaders: 'Content-Type, Authorization',
+  credentials: true, // Allow cookies/credentials
+  preflightContinue: true, // Handle preflight requests
 };
 app.use(cors(corsOptions));
+
+// Handle OPTIONS requests explicitly
+app.options('*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
+
 app.use(express.json());
 
 app.use('/api', analyzerRoutes);
 
-// Set up proxy route for Gemini API
-app.post('/api/proxy/analyze/:username', async (req, res) => {
-  try {
-    const { username } = req.params;
-    const geminiAPIURL = `https://api.gemini.com/v1/analyze/${username}`; // Replace with actual Gemini API URL
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
-    // Forward the request to the Gemini API
-    const response = await axios.post(geminiAPIURL, req.body, {
+// Initialize the Google Gemini API client
+const genAI = new GoogleGenerativeAI(process.env.API_KEY); // Use your Gemini API key here
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN
+});
+
+// Utility function to fetch GitHub user data
+async function fetchGitHubData(username) {
+  try {
+    const userResponse = await octokit.request('GET /users/{username}', {
+      username,
       headers: {
-        'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`,
-        'Content-Type': 'application/json'
+        'X-GitHub-Api-Version': '2022-11-28'
       }
     });
+
+    const reposResponse = await octokit.request('GET /users/{username}/repos', {
+      username,
+      sort: 'updated',
+      per_page: 100,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    });
+
+    return {
+      user: userResponse.data,
+      repos: reposResponse.data
+    };
+  } catch (error) {
+    console.error('Error fetching GitHub data:', error);
+    throw error;
+  }
+}
+
+// Utility function to analyze GitHub profile with Gemini API
+async function analyzeProfile(githubData) {
+  const userInfo = githubData.user;
+  const repos = githubData.repos;
+
+  const prompt = `Analyze this GitHub profile and provide a detailed, friendly analysis with a chill score (0-100):
+    User: ${userInfo.login}
+    Name: ${userInfo.name}
+    Bio: ${userInfo.bio}
+    Public Repos: ${userInfo.public_repos}
+    Followers: ${userInfo.followers}
+    Following: ${userInfo.following}
+    Top Repositories: ${repos.slice(0, 5).map(repo => 
+      `${repo.name} (Stars: ${repo.stargazers_count}, Forks: ${repo.forks_count})`
+    ).join(', ')}
+    
+    Consider factors like:
+    1. Contribution frequency
+    2. Project diversity
+    3. Community engagement
+    4. Documentation quality
+    5. Code organization
+    
+    Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (error) {
+    console.error('Error generating profile analysis:', error);
+    throw error;
+  }
+}
+
+app.post('/api/analyze/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
 
     // Set the necessary CORS headers to allow the frontend to access the response
     res.setHeader('Access-Control-Allow-Origin', '*');  // Allows all origins
@@ -50,17 +129,20 @@ app.post('/api/proxy/analyze/:username', async (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-    // Send the Gemini API response back to the client
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error in proxying the request:', error);
-    res.status(500).json({ error: 'An error occurred while proxying the request' });
-  }
-});
+    // Fetch GitHub data
+    const githubData = await fetchGitHubData(username);
+    
+    // Get the analysis from Gemini API
+    const analysis = await analyzeProfile(githubData);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+    // Send the analysis result to the client
+    res.write(`data: ${JSON.stringify({ content: analysis })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'An error occurred while analyzing the profile' });
+  }
 });
 
 const PORT = process.env.PORT || 8000;
