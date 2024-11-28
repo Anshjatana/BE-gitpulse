@@ -19,13 +19,16 @@ router.post('/analyze/:username', async (req, res) => {
     // Get the streaming response from OpenAI
     const stream = await generateProfileAnalysis(githubData);
     
-    // Stream the analysis to the client
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      if (chunk.choices && chunk.choices.length > 0) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      } else {
+        console.error('No choices found in chunk:', chunk);
       }
-    }
+    }    
 
     res.write('data: [DONE]\n\n');
     res.end();
