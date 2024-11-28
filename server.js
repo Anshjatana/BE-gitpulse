@@ -2,9 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { Octokit } from 'octokit';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai'; // Import Gemini library
 import analyzerRoutes from './src/routes/analyzerRoutes.js';
-
 
 dotenv.config();
 
@@ -31,15 +30,14 @@ app.use(express.json());
 
 app.use('/api', analyzerRoutes);
 
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize the Google Gemini API client
+const genAI = new GoogleGenerativeAI(process.env.API_KEY); // Use your Gemini API key here
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN
@@ -74,7 +72,7 @@ async function fetchGitHubData(username) {
   }
 }
 
-// Utility function to analyze GitHub profile with AI
+// Utility function to analyze GitHub profile with Gemini API
 async function analyzeProfile(githubData) {
   const userInfo = githubData.user;
   const repos = githubData.repos;
@@ -99,17 +97,19 @@ async function analyzeProfile(githubData) {
     
     Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
 
-  return openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
-    messages: [{ role: "user", content: prompt }],
-    stream: true
-  });
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  } catch (error) {
+    console.error('Error generating profile analysis:', error);
+    throw error;
+  }
 }
 
 app.post('/api/analyze/:username', async (req, res) => {
   try {
     const { username } = req.params;
-    
+
     // Set headers for streaming
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -118,17 +118,11 @@ app.post('/api/analyze/:username', async (req, res) => {
     // Fetch GitHub data
     const githubData = await fetchGitHubData(username);
     
-    // Get the streaming response from OpenAI
-    const stream = await analyzeProfile(githubData);
-    
-    // Stream the analysis to the client
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
-      }
-    }
+    // Get the analysis from Gemini API
+    const analysis = await analyzeProfile(githubData);
 
+    // Send the analysis result to the client
+    res.write(`data: ${JSON.stringify({ content: analysis })}\n\n`);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error) {
@@ -136,7 +130,6 @@ app.post('/api/analyze/:username', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while analyzing the profile' });
   }
 });
-
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
