@@ -124,6 +124,9 @@ app.post('/api/analyze/:username', async (req, res) => {
     const { username } = req.params;
 
     // Set the necessary CORS headers to allow the frontend to access the response
+    res.setHeader('Content-Type', 'text/event-stream'); // Set proper content type for SSE
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');  // Allows all origins
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -135,9 +138,13 @@ app.post('/api/analyze/:username', async (req, res) => {
     // Get the analysis from Gemini API
     const analysis = await analyzeProfile(githubData);
 
-    // Send the analysis result to the client
-    res.write(`data: ${JSON.stringify({ content: analysis })}\n\n`);
-    res.write('data: [DONE]\n\n');
+    // Stream the content to the client
+    const contentChunks = analysis.split('\n'); // Split by line breaks for chunked streaming
+    for (const chunk of contentChunks) {
+      res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+    }
+    
+    res.write('data: [DONE]\n\n'); // Mark the end of the stream
     res.end();
   } catch (error) {
     console.error('Error:', error);
