@@ -119,7 +119,7 @@ async function analyzeProfile(githubData) {
   }
 }
 
-app.post('/api/analyze/:username', async (req, res) => {
+app.get('/api/analyze/:username', async (req, res) => {
   try {
     const { username } = req.params;
 
