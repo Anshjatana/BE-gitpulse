@@ -1,8 +1,9 @@
+import OpenAI from 'openai';
 import { config } from '../config/index.js';
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const genAI = new GoogleGenerativeAI(config.google.apiKey); // Replace with your Google API Key
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const openai = new OpenAI({
+  apiKey: config.openai.apiKey
+});
 
 export async function generateProfileAnalysis(githubData) {
   const userInfo = githubData.user;
@@ -28,6 +29,9 @@ export async function generateProfileAnalysis(githubData) {
     
     Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
 
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  return openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages: [{ role: "user", content: prompt }],
+    stream: true
+  });
 }
