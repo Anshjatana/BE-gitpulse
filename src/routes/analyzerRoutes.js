@@ -20,15 +20,20 @@ router.post('/analyze/:username', async (req, res) => {
     const stream = await generateProfileAnalysis(githubData);
     
     for await (const chunk of stream) {
-      if (chunk.choices && chunk.choices.length > 0) {
-        const content = chunk.choices[0]?.delta?.content || '';
+      console.log('Received chunk:', chunk);
+      if (chunk.choices && Array.isArray(chunk.choices) && chunk.choices.length > 0) {
+        const choice = chunk.choices[0];
+        const content = choice?.delta?.content || '';  // Check delta and content
         if (content) {
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        } else {
+          console.warn('Content missing in chunk choice:', choice);
         }
       } else {
-        console.error('No choices found in chunk:', chunk);
+        console.error('No valid choices found in chunk:', chunk);
       }
-    }    
+    }
+       
 
     res.write('data: [DONE]\n\n');
     res.end();
