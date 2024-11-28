@@ -19,20 +19,27 @@ router.post('/analyze/:username', async (req, res) => {
     // Get the streaming response from OpenAI
     const stream = await generateProfileAnalysis(githubData);
     
-    for await (const chunk of stream) {
-      console.log('Received chunk:', chunk);
-      if (chunk.choices && Array.isArray(chunk.choices) && chunk.choices.length > 0) {
-        const choice = chunk.choices[0];
-        const content = choice?.delta?.content || '';  // Check delta and content
-        if (content) {
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
-        } else {
-          console.warn('Content missing in chunk choice:', choice);
-        }
-      } else {
-        console.error('No valid choices found in chunk:', chunk);
+    let buffer = '';  // Accumulate characters
+
+for await (const chunk of stream) {
+  buffer += chunk;  // Add chunk to the buffer
+
+  // Check if we have a complete JSON message (assuming it's a stringified JSON)
+  try {
+    const parsedChunk = JSON.parse(buffer);
+    if (parsedChunk.choices && Array.isArray(parsedChunk.choices) && parsedChunk.choices.length > 0) {
+      const content = parsedChunk.choices[0]?.delta?.content || '';
+      if (content) {
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
+      buffer = '';  // Reset the buffer after processing
     }
+  } catch (error) {
+    // If the buffer isn't a valid JSON yet, we just continue accumulating
+    // Log the partial content for debugging
+    console.log('Partial buffer:', buffer);
+  }
+}
        
 
     res.write('data: [DONE]\n\n');
