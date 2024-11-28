@@ -26,7 +26,7 @@ export async function generateProfileAnalysis(githubData) {
     4. Documentation quality
     5. Code organization
     
-    Keep the response short, impressive and crisp. Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
+    Keep the response short, impressive and crisp. Also add related emojis. Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
 
   const result = await model.generateContent(prompt);
   return result.response.text();
