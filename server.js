@@ -9,7 +9,24 @@ import analyzerRoutes from './src/routes/analyzerRoutes.js';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// Define the allowed origins
+const allowedOrigins = ['http://localhost:3000', 'https://gitpulse.anshjatana.online'];
+
+// CORS options
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true); // Allow the request
+    } else {
+      callback(new Error('Not allowed by CORS'), false); // Reject the request
+    }
+  },
+  methods: 'GET, POST, PUT, DELETE, OPTIONS', // Allow these methods
+  allowedHeaders: 'Content-Type, Authorization', // Allow these headers
+  credentials: true, // Allow cookies or credentials to be sent
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api', analyzerRoutes);
