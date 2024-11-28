@@ -15,17 +15,30 @@ const allowedOrigins = ['http://localhost:3000', 'https://gitpulse.anshjatana.on
 // CORS options
 const corsOptions = {
   origin: (origin, callback) => {
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    // Allow specific origins or none (i.e., * for all origins)
+    const allowedOrigins = ['http://localhost:3000', 'https://gitpulse.anshjatana.online'];
+    if (allowedOrigins.includes(origin) || !origin) {
       callback(null, true); // Allow the request
     } else {
       callback(new Error('Not allowed by CORS'), false); // Reject the request
     }
   },
-  methods: 'GET, POST, PUT, DELETE, OPTIONS', // Allow these methods
-  allowedHeaders: 'Content-Type, Authorization', // Allow these headers
-  credentials: true, // Allow cookies or credentials to be sent
+  methods: 'GET, POST, PUT, DELETE, OPTIONS',
+  allowedHeaders: 'Content-Type, Authorization',
+  credentials: true, // Allow cookies/credentials
+  preflightContinue: true, // Handle preflight requests
 };
 app.use(cors(corsOptions));
+
+// Handle OPTIONS requests explicitly
+app.options('*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.status(200).end();
+});
+
 app.use(express.json());
 
 app.use('/api', analyzerRoutes);
