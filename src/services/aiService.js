@@ -28,7 +28,6 @@ export async function generateProfileAnalysis(githubData) {
     
     Give me summary of this github profile in 150-200 words and a chill score between 0-100 based on above factors.
     It is advisable to keep the tone friendly and engaging. Also, add emojis to make it more fun! 🚀🌟🎉`;
-    `;
 
   const result = await model.generateContent(prompt);
   return result.response.text();
