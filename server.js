@@ -90,25 +90,23 @@ async function analyzeProfile(githubData) {
   const userInfo = githubData.user;
   const repos = githubData.repos;
 
-  const prompt = `Analyze this GitHub profile and provide a detailed, friendly analysis with a chill score (0-100):
-    User: ${userInfo.login}
-    Name: ${userInfo.name}
-    Bio: ${userInfo.bio}
-    Public Repos: ${userInfo.public_repos}
-    Followers: ${userInfo.followers}
-    Following: ${userInfo.following}
-    Top Repositories: ${repos.slice(0, 5).map(repo => 
-      `${repo.name} (Stars: ${repo.stargazers_count}, Forks: ${repo.forks_count})`
-    ).join(', ')}
-    
-    Consider factors like:
-    1. Contribution frequency
-    2. Project diversity
-    3. Community engagement
-    4. Documentation quality
-    5. Code organization
-    
-    Format the response as a friendly, conversational analysis with specific observations and a final chill score.`;
+  const prompt = `Analyze this GitHub profile and provide a short, friendly summary with a chill score (0-100):
+User: ${userInfo.login}
+Name: ${userInfo.name}
+Bio: ${userInfo.bio}
+Public Repos: ${userInfo.public_repos}
+Followers: ${userInfo.followers}
+Following: ${userInfo.following}
+Top Repositories: ${repos.slice(0, 5).map(repo => 
+  `${repo.name} (Stars: ${repo.stargazers_count}, Forks: ${repo.forks_count})`
+).join(', ')}
+
+Focus only on:
+1. Key strengths
+2. Areas for improvement
+3. Overall impression
+
+The summary should be **150-200 words**, concise, and engaging. Use a friendly tone with emojis to keep it fun! 🚀🌟🎉. End with a "Chill Score" (0-100).`;
 
   try {
     const result = await model.generateContent(prompt);
